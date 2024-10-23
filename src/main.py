@@ -6,7 +6,6 @@ import requests
 import json
 import sys
 import enum
-# import pyuac
 from datetime import datetime
 import win32com.client
 
@@ -165,21 +164,27 @@ class Installer(QWidget):
         settings_json = json.dumps(self.settings)
         with open(os.path.join(self.install_dir, 'settings.json'), 'w') as f:
             f.write(json.dumps(settings_json))
-        
-        client_info = requests.post(URL + '/api/client', data = json.dumps({
+
+        platform = {
             'platform': 'win32',
             'arch': 'x64'
-        })).json()
+        }
+        
+        client_info = requests.post(URL + '/api/client', data = json.dumps(platform)).json()
         media_info = requests.post(URL + '/api/media', settings_json).json()
+        server_info = requests.post(URL + '/api/server', data = json.dumps(platform)).json()
 
-        if client_info['exists'] == False:
+        if client_info['exists'] == False or server_info['exists'] == False:
             # TODO handler error
             QApplication.quit()
             sys.exit()
+        
+        
 
         self.files_to_download = []
         self.files_to_download.append(client_info)
-        
+        self.files_to_download.append(server_info)
+
         for file in media_info['filenames']:
             self.files_to_download.append(file)
         
@@ -196,8 +201,6 @@ class Installer(QWidget):
             response.raise_for_status()
             total_size = int(response.headers.get('content-length', 0))
             downloaded_size = 0
-
-
 
             with open(dest_path, 'wb') as file:
                 for chunk in response.iter_content(chunk_size=1024):
@@ -236,6 +239,11 @@ class Installer(QWidget):
                     'zip': zip_dir,
                     'out': os.path.join(media_dir, file['name'])
                 })
+            elif (file_type) == 'server':
+                self.files_to_unzip.append({
+                    'zip': zip_dir,
+                    'out': self.install_dir
+                })  
         
         self.current_unzip = 0
         self.unzip_finished.connect(self.finish_install)
