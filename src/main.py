@@ -154,7 +154,7 @@ class Installer(QWidget):
         file_info = self.files_to_download[self.current_download]
         file_name = file_info['filename']
         name = file_info['name']
-        self.progress_label.setText(f'Dowloading files ({self.current_download + 1}/{len(self.files_to_download)})')
+        self.progress_label.setText(f'Downloading files ({self.current_download + 1}/{len(self.files_to_download)})')
         self.download_file(file_name, os.path.join(self.install_dir, f'{name}.zip'))
 
 
@@ -163,7 +163,7 @@ class Installer(QWidget):
         os.makedirs(self.install_dir, exist_ok=True)
         settings_json = json.dumps(self.settings)
         with open(os.path.join(self.install_dir, 'settings.json'), 'w') as f:
-            f.write(json.dumps(settings_json))
+            f.write(settings_json)
 
         platform = {
             'platform': 'win32',
