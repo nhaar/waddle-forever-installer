@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Updater",
+            "label": "Build Updater (Windows)",
             "type": "shell",
             "command": "powershell",
             "args": [
@@ -10,6 +10,19 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "./.venv/Scripts/Activate.ps1;pyinstaller --name WaddleForeverInstaller --onefile src/main.py --noconsole"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Build Updater (Linux)",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "source .venv/bin/activate;pyinstaller --name WaddleForeverInstaller --onefile src/main.py --noconsole"
             ],
             "group": {
                 "kind": "build",
