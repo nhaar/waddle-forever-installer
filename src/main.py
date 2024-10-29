@@ -7,11 +7,17 @@ import json
 import sys
 import traceback
 import enum
+import platform
 from datetime import datetime
-import win32com.client
+
+CURRENT_PLATFORM = platform.system()
+
+if CURRENT_PLATFORM == 'Windows':
+    import win32com.client
 
 from PyQt5.QtWidgets import QApplication, QMessageBox, QProgressBar, QPushButton, QFileDialog, QCheckBox, QVBoxLayout, QProgressBar, QWidget, QLabel, QSizePolicy, QSpacerItem
-from PyQt5.QtCore import pyqtSignal, Qt, QTimer
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer, QUrl
+from PyQt5.QtGui import QDesktopServices
 
 IS_DEV = False
 
@@ -19,7 +25,7 @@ LOG = False
 
 VERSION = '1'
 
-URL = 'http://localhost:3000' if IS_DEV else 'http://waddleforever.com'
+URL = 'http://localhost:3000' if IS_DEV else 'https://waddleforever.com'
 
 if LOG:
     with open('waddle-forever-log.txt', 'w') as f:
@@ -62,7 +68,7 @@ class InstallerApp(QApplication):
                     outcome = OpenOutcome.Incompatible
             else:
                 outcome = OpenOutcome.Connection
-        except:
+        except :
             outcome = OpenOutcome.Connection
         
         if (outcome != OpenOutcome.Success):
@@ -100,7 +106,7 @@ class Installer(QWidget):
         self.button = QPushButton("Change Directory", self)
         self.button.clicked.connect(self.open_directory_picker)
 
-        self.default_directory = os.getenv('APPDATA')
+        self.default_directory = os.getenv('APPDATA') if CURRENT_PLATFORM == 'Windows' else os.path.expanduser('~')
 
         self.installation_directory_label = QLabel(self)
         self.install_dir = os.path.join(self.default_directory, "WaddleForever")
@@ -192,6 +198,9 @@ class Installer(QWidget):
 
         platform = {
             'platform': 'win32',
+            'arch': 'x64'
+        } if CURRENT_PLATFORM == 'Windows' else {
+            'platform': 'linux',
             'arch': 'x64'
         }
         
@@ -312,29 +321,35 @@ class Installer(QWidget):
     def finish_install(self):
         QWidget().setLayout(self.layout())
         layout = QVBoxLayout()
+        layout.addWidget(QLabel('Installation complete', self))
 
-        self.shortcut_checkbox = QCheckBox('Create desktop shortcut', self)
-        self.run_game_checkbox = QCheckBox('Run the game now', self)
-        self.shortcut_checkbox.setChecked(True)
-        self.run_game_checkbox.setChecked(True)
+        if CURRENT_PLATFORM == 'Windows':
+            self.shortcut_checkbox = QCheckBox('Create desktop shortcut', self)
+            self.run_game_checkbox = QCheckBox('Run the game now', self)
+            self.shortcut_checkbox.setChecked(True)
+            self.run_game_checkbox.setChecked(True)
+            
+            layout.addWidget(self.shortcut_checkbox)
+            layout.addWidget(self.run_game_checkbox)
         
+        if CURRENT_PLATFORM == 'Linux':
+            url = QUrl(URL + '/linux')
+            QDesktopServices.openUrl(url)
+
         self.finish_button = QPushButton('Finish')
         self.finish_button.clicked.connect(self.close_installer)
-
-        layout.addWidget(QLabel('Installation complete', self))
-        layout.addWidget(self.shortcut_checkbox)
-        layout.addWidget(self.run_game_checkbox)
         layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         layout.addWidget(self.finish_button)
         self.setLayout(layout)
     
     def close_installer(self):
-        exe_name = 'WaddleForeverClient.exe'
-        if self.shortcut_checkbox.checkState() == Qt.CheckState.Checked:
-            create_shortcut(self.install_dir, 'Waddle Forever', exe_name)
-        if self.run_game_checkbox.checkState() == Qt.CheckState.Checked:
-            subprocess.Popen(os.path.join(self.install_dir, exe_name), cwd=self.install_dir)
-        
+        if CURRENT_PLATFORM == 'Windows':
+            exe_name = 'WaddleForeverClient.exe'
+            if self.shortcut_checkbox.checkState() == Qt.CheckState.Checked:
+                create_shortcut(self.install_dir, 'Waddle Forever', exe_name)
+            if self.run_game_checkbox.checkState() == Qt.CheckState.Checked:
+                subprocess.Popen(os.path.join(self.install_dir, exe_name), cwd=self.install_dir)
+
         self.app.finished.emit()
 
 def create_shortcut(target_path, shortcut_name, target_name):
@@ -357,6 +372,11 @@ def main():
         app.exec()
     except:
         log(traceback.format_exc())
+    try:
+        app = InstallerApp()
+        app.exec()
+    except Exception as error:
+        print(error)
 
 if __name__ == "__main__":
     main()
