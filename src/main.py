@@ -5,18 +5,30 @@ import threading
 import requests
 import json
 import sys
+import traceback
 import enum
 from datetime import datetime
 import win32com.client
 
-from PyQt6.QtWidgets import QApplication, QMessageBox, QProgressBar, QPushButton, QFileDialog, QCheckBox, QVBoxLayout, QProgressBar, QWidget, QLabel, QSizePolicy, QSpacerItem
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer
+from PyQt5.QtWidgets import QApplication, QMessageBox, QProgressBar, QPushButton, QFileDialog, QCheckBox, QVBoxLayout, QProgressBar, QWidget, QLabel, QSizePolicy, QSpacerItem
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 
-IS_DEV = True
+IS_DEV = False
+
+LOG = False
 
 VERSION = '1'
 
 URL = 'http://localhost:3000' if IS_DEV else 'http://waddleforever.com'
+
+if LOG:
+    with open('waddle-forever-log.txt', 'w') as f:
+        f.write('')
+
+def log(*strings):
+    if LOG:
+        with open('log.txt', 'a') as f:
+            f.write(' '.join([str(x) for x in strings]) + '\n')
 
 class OpenOutcome(enum.IntEnum):
     Success = 0,
@@ -69,6 +81,9 @@ class InstallerApp(QApplication):
 class Installer(QWidget):
     download_finished = pyqtSignal()
     unzip_finished = pyqtSignal()
+
+    update_progress_message = pyqtSignal(str)
+    update_progress_bar = pyqtSignal(int)
 
     def __init__(self, app):
         super().__init__()
@@ -147,16 +162,26 @@ class Installer(QWidget):
         layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         self.setLayout(layout)
 
+        self.update_progress_message.connect(self.set_progress_label)
+        self.update_progress_bar.connect(self.set_progress_bar)
+
         QTimer.singleShot(0, self.start_download)
 
+    def set_progress_label(self, message: str):
+        self.progress_label.setText(message)
+
+    def set_progress_bar(self, progress: int):
+        self.progress_bar.setValue(progress)
         
     def download_current_file(self):
         file_info = self.files_to_download[self.current_download]
         file_name = file_info['filename']
         name = file_info['name']
-        self.progress_label.setText(f'Downloading files ({self.current_download + 1}/{len(self.files_to_download)})')
-        self.download_file(file_name, os.path.join(self.install_dir, f'{name}.zip'))
-
+        self.update_progress_message.emit(f'Downloading files ({self.current_download + 1}/{len(self.files_to_download)})')
+        try:
+            self.download_file(file_name, os.path.join(self.install_dir, f'{name}.zip'))
+        except:
+            log(traceback.format_exc())
 
     def start_download(self):
         self.current_download = 0
@@ -196,13 +221,19 @@ class Installer(QWidget):
 
     def download_file(self, name, dest_path):
         last_update = datetime.now()
-        
+
+        log('Starting DOWNLOAD', datetime.now())
         with requests.get(URL + '/' + name, stream=True) as response:
+            log('Request start', datetime.now())
+            log('Response: ', response.status_code)
             response.raise_for_status()
+
             total_size = int(response.headers.get('content-length', 0))
             downloaded_size = 0
+            log('Size', total_size, datetime.now())
 
             with open(dest_path, 'wb') as file:
+                log('Opened', datetime.now())
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
                         file.write(chunk)
@@ -211,10 +242,12 @@ class Installer(QWidget):
                         current = datetime.now()
                         delta = current - last_update
                         if delta.seconds >= 1:
+                            log('Progress: ', downloaded_size / total_size)
                             last_update = current
-                            self.progress_bar.setValue(int(downloaded_size / total_size * 100))
+                            self.update_progress_bar.emit(int(downloaded_size / total_size * 100))
                 
-                self.progress_bar.setValue(100)
+                log('Finished', datetime.now())
+                self.update_progress_bar.emit(100)
                 self.current_download += 1
                 if (self.current_download < len(self.files_to_download)):
                     self.download_current_file()
@@ -252,18 +285,23 @@ class Installer(QWidget):
 
     def unzip_current_file(self):
         unzip_info = self.files_to_unzip[self.current_unzip]
-        self.progress_label.setText(f'Extracting files ({self.current_unzip + 1}/{len(self.files_to_unzip)})')
-        self.unzip_file(unzip_info['zip'], unzip_info['out'])
+        self.update_progress_message.emit(f'Extracting files ({self.current_unzip + 1}/{len(self.files_to_unzip)})')
+        try:
+            self.unzip_file(unzip_info['zip'], unzip_info['out'])
+        except:
+            log(traceback.format_exc())
 
     def unzip_file(self, zip_path, extract_to):
+        log('Starting unzip')
         os.makedirs(extract_to, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             total_files = len(zip_ref.infolist())
             for i, file in enumerate(zip_ref.infolist()):
                 zip_ref.extract(file, extract_to)
-                self.progress_bar.setValue(int((i + 1) / total_files * 100))
+                self.update_progress_bar.emit(int((i + 1) / total_files * 100))
 
+        log('zip success')
         os.remove(zip_path)
         self.current_unzip += 1
         if (self.current_unzip < len(self.files_to_unzip)):
@@ -314,8 +352,11 @@ def create_shortcut(target_path, shortcut_name, target_name):
     shortcut.save()
 
 def main():
-    app = InstallerApp()
-    app.exec()
+    try:
+        app = InstallerApp()
+        app.exec()
+    except:
+        log(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
