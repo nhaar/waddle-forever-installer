@@ -185,7 +185,10 @@ class Installer(QWidget):
         name = file_info['name']
         self.update_progress_message.emit(f'Downloading files ({self.current_download + 1}/{len(self.files_to_download)})')
         try:
-            self.download_file(file_name, os.path.join(self.install_dir, f'{name}.zip'))
+            if name == 'server':
+                self.download_file(file_name, os.path.join(self.install_dir, f'WaddleForeverServer.exe'))
+            else:
+                self.download_file(file_name, os.path.join(self.install_dir, f'{name}.zip'))
         except:
             log(traceback.format_exc())
 
@@ -281,11 +284,6 @@ class Installer(QWidget):
                     'zip': zip_dir,
                     'out': os.path.join(media_dir, file['name'])
                 })
-            elif (file_type) == 'server':
-                self.files_to_unzip.append({
-                    'zip': zip_dir,
-                    'out': self.install_dir
-                })  
         
         self.current_unzip = 0
         self.unzip_finished.connect(self.finish_install)
