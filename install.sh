@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 URL="https://waddleforever.com/"
 CLIENT="client"
 SERVER="server"
